@@ -1,4 +1,4 @@
-html
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -167,7 +167,6 @@ lastPanY=e.clientY
 })
 
 
-
 /* pointer move */
 
 canvas.addEventListener("pointermove",e=>{
@@ -177,7 +176,6 @@ if(pointers[i].pointerId===e.pointerId){
 pointers[i]=e
 }
 }
-
 
 /* 2本指ズーム */
 
@@ -215,7 +213,6 @@ draw()
 lastDistance=distance
 
 return
-
 }
 
 
@@ -223,8 +220,11 @@ return
 
 if(pointers.length===1){
 
-offsetX+=e.clientX-lastPanX
-offsetY+=e.clientY-lastPanY
+const dx=(e.clientX-lastPanX)/scale
+const dy=(e.clientY-lastPanY)/scale
+
+offsetX+=dx
+offsetY+=dy
 
 lastPanX=e.clientX
 lastPanY=e.clientY
@@ -239,7 +239,6 @@ draw()
 canvas.addEventListener("pointerup",e=>{
 
 pointers=pointers.filter(p=>p.pointerId!==e.pointerId)
-
 lastDistance=0
 
 })
