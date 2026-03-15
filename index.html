@@ -2,10 +2,14 @@ html
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
 <title>Tent Simulator</title>
 
 <style>
+
 body{
 font-family:sans-serif;
 text-align:center;
@@ -21,12 +25,13 @@ button{
 margin:5px;
 padding:8px 12px;
 }
+
 </style>
 </head>
 
 <body>
 
-<h2>テント張替えシミュレーター(test)</h2>
+<h2>テント張替えシミュレーターTEST</h2>
 
 <input type="file" id="upload"><br><br>
 
@@ -57,7 +62,6 @@ const ctx=canvas.getContext("2d")
 let originalImage=null
 let points=[]
 let maskPath=null
-let draggingPoint=-1
 
 let scale=1
 let offsetX=0
@@ -67,6 +71,9 @@ let pointers=[]
 let lastDistance=0
 let lastPanX=0
 let lastPanY=0
+
+
+/* CSV読み込み */
 
 fetch(csvURL)
 .then(res=>res.text())
@@ -99,6 +106,9 @@ select.appendChild(option)
 
 })
 
+
+/* 画像読み込み */
+
 document.getElementById("upload").onchange=e=>{
 
 const file=e.target.files[0]
@@ -125,6 +135,9 @@ img.src=URL.createObjectURL(file)
 
 }
 
+
+/* 座標取得 */
+
 function getMousePos(e){
 
 const rect=canvas.getBoundingClientRect()
@@ -139,22 +152,8 @@ y:(y-offsetY)/scale
 
 }
 
-function findPoint(pos){
 
-for(let i=0;i<points.length;i++){
-
-const dx=points[i].x-pos.x
-const dy=points[i].y-pos.y
-
-if(Math.sqrt(dx*dx+dy*dy)<20){
-return i
-}
-
-}
-
-return -1
-
-}
+/* pointer down */
 
 canvas.addEventListener("pointerdown",e=>{
 
@@ -165,14 +164,11 @@ pointers.push(e)
 lastPanX=e.clientX
 lastPanY=e.clientY
 
-const pos=getMousePos(e)
-const hit=findPoint(pos)
-
-if(hit>=0 && pointers.length===1){
-draggingPoint=hit
-}
-
 })
+
+
+
+/* pointer move */
 
 canvas.addEventListener("pointermove",e=>{
 
@@ -181,6 +177,9 @@ if(pointers[i].pointerId===e.pointerId){
 pointers[i]=e
 }
 }
+
+
+/* 2本指ズーム */
 
 if(pointers.length===2){
 
@@ -192,20 +191,9 @@ const dy=p1.clientY-p2.clientY
 
 const distance=Math.sqrt(dx*dx+dy*dy)
 
-const centerX=(p1.clientX+p2.clientX)/2
-const centerY=(p1.clientY+p2.clientY)/2
-
-const rect=canvas.getBoundingClientRect()
-
-const mouseX=(centerX-rect.left)*(canvas.width/rect.width)
-const mouseY=(centerY-rect.top)*(canvas.height/rect.height)
-
 if(lastDistance){
 
 const zoom=distance/lastDistance
-
-offsetX=mouseX-(mouseX-offsetX)*zoom
-offsetY=mouseY-(mouseY-offsetY)*zoom
 
 scale*=zoom
 
@@ -218,7 +206,10 @@ return
 
 }
 
-if(pointers.length===1 && draggingPoint===-1){
+
+/* 1本指移動 */
+
+if(pointers.length===1){
 
 offsetX+=e.clientX-lastPanX
 offsetY+=e.clientY-lastPanY
@@ -227,47 +218,50 @@ lastPanX=e.clientX
 lastPanY=e.clientY
 
 draw()
-return
-
-}
-
-if(draggingPoint>=0){
-
-const pos=getMousePos(e)
-points[draggingPoint]=pos
-draw()
 
 }
 
 })
+
 
 canvas.addEventListener("pointerup",e=>{
 
 pointers=pointers.filter(p=>p.pointerId!==e.pointerId)
+
 lastDistance=0
-draggingPoint=-1
 
 })
+
+
+/* タップで点追加 */
+
+canvas.addEventListener("click",e=>{
+
+const pos=getMousePos(e)
+
+points.push(pos)
+
+draw()
+
+})
+
+
+/* マウスホイールズーム */
 
 canvas.addEventListener("wheel",e=>{
 
 e.preventDefault()
 
-const rect=canvas.getBoundingClientRect()
-
-const mouseX=(e.clientX-rect.left)*(canvas.width/rect.width)
-const mouseY=(e.clientY-rect.top)*(canvas.height/rect.height)
-
 const zoom=e.deltaY<0?1.1:0.9
-
-offsetX=mouseX-(mouseX-offsetX)*zoom
-offsetY=mouseY-(mouseY-offsetY)*zoom
 
 scale*=zoom
 
 draw()
 
 })
+
+
+/* 描画 */
 
 function draw(){
 
@@ -309,6 +303,9 @@ ctx.fill()
 
 }
 
+
+/* 囲い完成 */
+
 function finishPolygon(){
 
 if(points.length<3)return
@@ -327,7 +324,11 @@ draw()
 
 }
 
+
 document.getElementById("fabricSelect").onchange=draw
+
+
+/* 生地合成 */
 
 function applyFabric(){
 
@@ -350,12 +351,18 @@ ctx.restore()
 
 }
 
+
+/* 戻る */
+
 function undoPoint(){
 
 points.pop()
 draw()
 
 }
+
+
+/* 削除 */
 
 function clearPolygon(){
 
@@ -366,7 +373,7 @@ draw()
 }
 
 
-/* ===== 保存機能 ===== */
+/* 保存 */
 
 function saveImage(){
 
