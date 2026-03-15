@@ -1,4 +1,4 @@
-html
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -39,6 +39,7 @@ padding:8px 12px;
 <button onclick="undoPoint()">1点戻す</button>
 <button onclick="clearPolygon()">囲い削除</button>
 <button onclick="finishPolygon()">囲み完了</button>
+<button onclick="saveImage()">画像保存</button>
 
 <br><br>
 
@@ -54,8 +55,14 @@ const ctx=canvas.getContext("2d")
 let originalImage=null
 let points=[]
 let maskPath=null
-
 let draggingPoint=-1
+
+let scale=1
+let offsetX=0
+let offsetY=0
+
+let pointers=[]
+let lastDistance=0
 
 //CSV読み込み
 
@@ -64,7 +71,6 @@ fetch(csvURL)
 .then(text=>{
 
 const rows=text.split("\n").slice(1)
-
 const select=document.getElementById("fabricSelect")
 
 select.innerHTML=""
@@ -104,12 +110,16 @@ img.onload=()=>{
 canvas.width=img.width
 canvas.height=img.height
 
-ctx.drawImage(img,0,0)
+scale=1
+offsetX=0
+offsetY=0
 
 originalImage=img
 
 points=[]
 maskPath=null
+
+draw()
 
 }
 
@@ -123,9 +133,12 @@ function getMousePos(e){
 
 const rect=canvas.getBoundingClientRect()
 
+const x=(e.clientX-rect.left)*(canvas.width/rect.width)
+const y=(e.clientY-rect.top)*(canvas.height/rect.height)
+
 return{
-x:(e.clientX-rect.left)*(canvas.width/rect.width),
-y:(e.clientY-rect.top)*(canvas.height/rect.height)
+x:(x-offsetX)/scale,
+y:(y-offsetY)/scale
 }
 
 }
@@ -140,9 +153,7 @@ const dx=points[i].x-pos.x
 const dy=points[i].y-pos.y
 
 if(Math.sqrt(dx*dx+dy*dy)<20){
-
 return i
-
 }
 
 }
@@ -157,18 +168,18 @@ canvas.addEventListener("pointerdown",e=>{
 
 if(!originalImage)return
 
-const pos=getMousePos(e)
+pointers.push(e)
 
+const pos=getMousePos(e)
 const hit=findPoint(pos)
 
 if(hit>=0){
 
 draggingPoint=hit
 
-}else{
+}else if(pointers.length===1){
 
 points.push(pos)
-
 draw()
 
 }
@@ -179,10 +190,35 @@ draw()
 
 canvas.addEventListener("pointermove",e=>{
 
+for(let i=0;i<pointers.length;i++){
+if(pointers[i].pointerId===e.pointerId){
+pointers[i]=e
+}
+}
+
+if(pointers.length===2){
+
+const dx=pointers[0].clientX-pointers[1].clientX
+const dy=pointers[0].clientY-pointers[1].clientY
+
+const distance=Math.sqrt(dx*dx+dy*dy)
+
+if(lastDistance){
+
+const zoom=distance/lastDistance
+scale*=zoom
+draw()
+
+}
+
+lastDistance=distance
+return
+
+}
+
 if(draggingPoint<0)return
 
 const pos=getMousePos(e)
-
 points[draggingPoint]=pos
 
 draw()
@@ -191,9 +227,33 @@ draw()
 
 //pointer up
 
-canvas.addEventListener("pointerup",()=>{
+canvas.addEventListener("pointerup",e=>{
 
+pointers=pointers.filter(p=>p.pointerId!==e.pointerId)
+lastDistance=0
 draggingPoint=-1
+
+})
+
+//マウス位置中心ズーム
+
+canvas.addEventListener("wheel",e=>{
+
+e.preventDefault()
+
+const rect=canvas.getBoundingClientRect()
+
+const mouseX=(e.clientX-rect.left)*(canvas.width/rect.width)
+const mouseY=(e.clientY-rect.top)*(canvas.height/rect.height)
+
+const zoom=e.deltaY<0?1.1:0.9
+
+offsetX=mouseX-(mouseX-offsetX)*zoom
+offsetY=mouseY-(mouseY-offsetY)*zoom
+
+scale*=zoom
+
+draw()
 
 })
 
@@ -201,16 +261,23 @@ draggingPoint=-1
 
 function draw(){
 
+ctx.setTransform(1,0,0,1,0,0)
 ctx.clearRect(0,0,canvas.width,canvas.height)
+
+ctx.setTransform(scale,0,0,scale,offsetX,offsetY)
 
 if(originalImage){
 ctx.drawImage(originalImage,0,0)
 }
 
+if(maskPath){
+applyFabric()
+return
+}
+
 if(points.length===0)return
 
 ctx.beginPath()
-
 ctx.moveTo(points[0].x,points[0].y)
 
 for(let i=1;i<points.length;i++){
@@ -248,29 +315,20 @@ maskPath.lineTo(points[i].x,points[i].y)
 
 maskPath.closePath()
 
-applyFabric()
+draw()
 
 }
 
 //生地変更
 
-document.getElementById("fabricSelect").onchange=applyFabric
+document.getElementById("fabricSelect").onchange=draw
 
 function applyFabric(){
 
 if(!maskPath)return
 
 const val=document.getElementById("fabricSelect").value
-
 const cols=val.split(",")
-
-const r=cols[0]
-const g=cols[1]
-const b=cols[2]
-
-ctx.clearRect(0,0,canvas.width,canvas.height)
-
-ctx.drawImage(originalImage,0,0)
 
 ctx.save()
 
@@ -278,7 +336,7 @@ ctx.clip(maskPath)
 
 ctx.globalCompositeOperation="multiply"
 
-ctx.fillStyle=`rgb(${r},${g},${b})`
+ctx.fillStyle=`rgb(${cols[0]},${cols[1]},${cols[2]})`
 
 ctx.fillRect(0,0,canvas.width,canvas.height)
 
@@ -293,7 +351,6 @@ function undoPoint(){
 if(points.length===0)return
 
 points.pop()
-
 draw()
 
 }
@@ -304,12 +361,56 @@ function clearPolygon(){
 
 points=[]
 maskPath=null
+draw()
 
-ctx.clearRect(0,0,canvas.width,canvas.height)
-
-if(originalImage){
-ctx.drawImage(originalImage,0,0)
 }
+
+//画像保存
+
+function saveImage(){
+
+if(!originalImage)return
+
+const exportCanvas=document.createElement("canvas")
+const exportCtx=exportCanvas.getContext("2d")
+
+exportCanvas.width=canvas.width
+exportCanvas.height=canvas.height
+
+exportCtx.drawImage(originalImage,0,0)
+
+if(maskPath){
+
+const val=document.getElementById("fabricSelect").value
+const cols=val.split(",")
+
+exportCtx.save()
+
+exportCtx.beginPath()
+exportCtx.moveTo(points[0].x,points[0].y)
+
+for(let i=1;i<points.length;i++){
+exportCtx.lineTo(points[i].x,points[i].y)
+}
+
+exportCtx.closePath()
+
+exportCtx.clip()
+
+exportCtx.globalCompositeOperation="multiply"
+
+exportCtx.fillStyle=`rgb(${cols[0]},${cols[1]},${cols[2]})`
+
+exportCtx.fillRect(0,0,exportCanvas.width,exportCanvas.height)
+
+exportCtx.restore()
+
+}
+
+const link=document.createElement("a")
+link.download="tent_simulation.png"
+link.href=exportCanvas.toDataURL("image/png")
+link.click()
 
 }
 
