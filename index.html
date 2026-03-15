@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tent Simulator</title>
+
+<style>
+
+body{
+font-family:sans-serif;
+text-align:center;
+}
+
+canvas{
+border:1px solid #aaa;
+max-width:95%;
+touch-action:none;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>テント張替シミュレーター（TEST）</h2>
+
+<input type="file" id="upload"><br><br>
+
+<select id="fabricSelect"></select>
+
+<button onclick="finishPolygon()">囲み完了</button>
+
+<br><br>
+
+<canvas id="canvas"></canvas>
+
+<script>
+
+const canvas = document.getElementById("canvas")
+const ctx = canvas.getContext("2d")
+
+let originalImage=null
+let points=[]
+let maskPath=null
+
+// ===== CSV読み込み =====
+
+const csvURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv"
+
+fetch(csvURL)
+.then(r=>r.text())
+.then(text=>{
+
+const rows=text.split("\n").slice(1)
+
+const select=document.getElementById("fabricSelect")
+
+rows.forEach(row=>{
+
+if(!row.trim())return
+
+const cols=row.split(",")
+
+const option=document.createElement("option")
+
+option.value=row
+option.textContent=cols[0]
+
+select.appendChild(option)
+
+})
+
+})
+
+// ===== 画像アップロード =====
+
+document.getElementById("upload").onchange=e=>{
+
+const file=e.target.files[0]
+
+const img=new Image()
+
+img.onload=()=>{
+
+canvas.width=img.width
+canvas.height=img.height
+
+ctx.drawImage(img,0,0)
+
+originalImage=img
+
+points=[]
+
+}
+
+img.src=URL.createObjectURL(file)
+
+}
+
+// ===== ポリゴン入力 =====
+
+canvas.addEventListener("pointerdown",e=>{
+
+const rect=canvas.getBoundingClientRect()
+
+const x=(e.clientX-rect.left)*(canvas.width/rect.width)
+const y=(e.clientY-rect.top)*(canvas.height/rect.height)
+
+points.push({x,y})
+
+draw()
+
+})
+
+// ===== ポリゴン描画 =====
+
+function draw(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height)
+
+ctx.drawImage(originalImage,0,0)
+
+if(points.length===0)return
+
+ctx.beginPath()
+
+ctx.moveTo(points[0].x,points[0].y)
+
+for(let i=1;i<points.length;i++){
+
+ctx.lineTo(points[i].x,points[i].y)
+
+}
+
+ctx.strokeStyle="red"
+ctx.lineWidth=3
+
+ctx.stroke()
+
+}
+
+// ===== ポリゴン確定 =====
+
+function finishPolygon(){
+
+if(points.length<3)return
+
+maskPath=new Path2D()
+
+maskPath.moveTo(points[0].x,points[0].y)
+
+for(let i=1;i<points.length;i++){
+
+maskPath.lineTo(points[i].x,points[i].y)
+
+}
+
+maskPath.closePath()
+
+applyFabric()
+
+}
+
+// ===== 生地適用 =====
+
+document.getElementById("fabricSelect").onchange=applyFabric
+
+function applyFabric(){
+
+if(!maskPath)return
+
+const row=document.getElementById("fabricSelect").value
+
+const cols=row.split(",")
+
+const type=cols[1]
+
+ctx.clearRect(0,0,canvas.width,canvas.height)
+
+ctx.drawImage(originalImage,0,0)
+
+ctx.save()
+
+ctx.clip(maskPath)
+
+if(type==="color"){
+
+const r=cols[2]
+const g=cols[3]
+const b=cols[4]
+
+ctx.globalCompositeOperation="multiply"
+
+ctx.fillStyle=`rgb(${r},${g},${b})`
+
+ctx.fillRect(0,0,canvas.width,canvas.height)
+
+}
+
+ctx.restore()
+
+}
+
+</script>
+
+</body>
+</html>
