@@ -186,6 +186,14 @@ if(pointers.length===2){
 const p1=pointers[0]
 const p2=pointers[1]
 
+const rect=canvas.getBoundingClientRect()
+
+const centerX=(p1.clientX+p2.clientX)/2
+const centerY=(p1.clientY+p2.clientY)/2
+
+const canvasX=(centerX-rect.left)*(canvas.width/rect.width)
+const canvasY=(centerY-rect.top)*(canvas.height/rect.height)
+
 const dx=p1.clientX-p2.clientX
 const dy=p1.clientY-p2.clientY
 
@@ -195,6 +203,9 @@ if(lastDistance){
 
 const zoom=distance/lastDistance
 
+offsetX=canvasX-(canvasX-offsetX)*zoom
+offsetY=canvasY-(canvasY-offsetY)*zoom
+
 scale*=zoom
 
 draw()
@@ -202,6 +213,7 @@ draw()
 }
 
 lastDistance=distance
+
 return
 
 }
