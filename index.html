@@ -63,14 +63,14 @@ let offsetY=0
 
 let pointers=[]
 let lastDistance=0
-
-//CSV読み込み
+let lastPanX=0
+let lastPanY=0
 
 fetch(csvURL)
 .then(res=>res.text())
 .then(text=>{
 
-const rows=text.split("\n").slice(1)
+const rows=text.trim().split("\n").slice(1)
 const select=document.getElementById("fabricSelect")
 
 select.innerHTML=""
@@ -97,12 +97,9 @@ select.appendChild(option)
 
 })
 
-//画像アップ
-
 document.getElementById("upload").onchange=e=>{
 
 const file=e.target.files[0]
-
 const img=new Image()
 
 img.onload=()=>{
@@ -115,7 +112,6 @@ offsetX=0
 offsetY=0
 
 originalImage=img
-
 points=[]
 maskPath=null
 
@@ -126,8 +122,6 @@ draw()
 img.src=URL.createObjectURL(file)
 
 }
-
-//座標取得
 
 function getMousePos(e){
 
@@ -142,8 +136,6 @@ y:(y-offsetY)/scale
 }
 
 }
-
-//近い点
 
 function findPoint(pos){
 
@@ -162,31 +154,25 @@ return -1
 
 }
 
-//pointer down
-
 canvas.addEventListener("pointerdown",e=>{
 
 if(!originalImage)return
 
+canvas.setPointerCapture(e.pointerId)
+
 pointers.push(e)
+
+lastPanX=e.clientX
+lastPanY=e.clientY
 
 const pos=getMousePos(e)
 const hit=findPoint(pos)
 
-if(hit>=0){
-
+if(hit>=0 && pointers.length===1){
 draggingPoint=hit
-
-}else if(pointers.length===1){
-
-points.push(pos)
-draw()
-
 }
 
 })
-
-//pointer move
 
 canvas.addEventListener("pointermove",e=>{
 
@@ -216,16 +202,28 @@ return
 
 }
 
-if(draggingPoint<0)return
+if(pointers.length===1 && draggingPoint===-1){
+
+offsetX+=e.clientX-lastPanX
+offsetY+=e.clientY-lastPanY
+
+lastPanX=e.clientX
+lastPanY=e.clientY
+
+draw()
+return
+
+}
+
+if(draggingPoint>=0){
 
 const pos=getMousePos(e)
 points[draggingPoint]=pos
-
 draw()
 
-})
+}
 
-//pointer up
+})
 
 canvas.addEventListener("pointerup",e=>{
 
@@ -234,8 +232,6 @@ lastDistance=0
 draggingPoint=-1
 
 })
-
-//マウス位置中心ズーム
 
 canvas.addEventListener("wheel",e=>{
 
@@ -256,8 +252,6 @@ scale*=zoom
 draw()
 
 })
-
-//再描画
 
 function draw(){
 
@@ -299,8 +293,6 @@ ctx.fill()
 
 }
 
-//囲み確定
-
 function finishPolygon(){
 
 if(points.length<3)return
@@ -318,8 +310,6 @@ maskPath.closePath()
 draw()
 
 }
-
-//生地変更
 
 document.getElementById("fabricSelect").onchange=draw
 
@@ -344,8 +334,6 @@ ctx.restore()
 
 }
 
-//1点戻す
-
 function undoPoint(){
 
 if(points.length===0)return
@@ -355,8 +343,6 @@ draw()
 
 }
 
-//囲い削除
-
 function clearPolygon(){
 
 points=[]
@@ -364,8 +350,6 @@ maskPath=null
 draw()
 
 }
-
-//画像保存
 
 function saveImage(){
 
