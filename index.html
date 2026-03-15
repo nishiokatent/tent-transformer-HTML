@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html>
 <head>
@@ -5,7 +6,6 @@
 <title>Tent Simulator</title>
 
 <style>
-
 body{
 font-family:sans-serif;
 text-align:center;
@@ -17,18 +17,27 @@ max-width:95%;
 touch-action:none;
 }
 
+button{
+margin:5px;
+padding:8px 12px;
+}
 </style>
-
 </head>
 
 <body>
 
-<h2>テント張替シミュレーター（TEST）</h2>
+<h2>テント張替えシミュレーター（TEST）</h2>
 
 <input type="file" id="upload"><br><br>
 
-<select id="fabricSelect"></select>
+<select id="fabricSelect">
+<option>生地読み込み中...</option>
+</select>
 
+<br><br>
+
+<button onclick="undoPoint()">1点戻す</button>
+<button onclick="clearPolygon()">囲い削除</button>
 <button onclick="finishPolygon()">囲み完了</button>
 
 <br><br>
@@ -37,24 +46,28 @@ touch-action:none;
 
 <script>
 
-const canvas = document.getElementById("canvas")
-const ctx = canvas.getContext("2d")
+const csvURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv"
+
+const canvas=document.getElementById("canvas")
+const ctx=canvas.getContext("2d")
 
 let originalImage=null
 let points=[]
 let maskPath=null
 
-// ===== CSV読み込み =====
+let draggingPoint=-1
 
-const csvURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv"
+//CSV読み込み
 
 fetch(csvURL)
-.then(r=>r.text())
+.then(res=>res.text())
 .then(text=>{
 
 const rows=text.split("\n").slice(1)
 
 const select=document.getElementById("fabricSelect")
+
+select.innerHTML=""
 
 rows.forEach(row=>{
 
@@ -62,10 +75,15 @@ if(!row.trim())return
 
 const cols=row.split(",")
 
+const name=cols[0]
+const r=cols[1]
+const g=cols[2]
+const b=cols[3]
+
 const option=document.createElement("option")
 
-option.value=row
-option.textContent=cols[0]
+option.textContent=name
+option.value=`${r},${g},${b}`
 
 select.appendChild(option)
 
@@ -73,7 +91,7 @@ select.appendChild(option)
 
 })
 
-// ===== 画像アップロード =====
+//画像アップ
 
 document.getElementById("upload").onchange=e=>{
 
@@ -91,6 +109,7 @@ ctx.drawImage(img,0,0)
 originalImage=img
 
 points=[]
+maskPath=null
 
 }
 
@@ -98,28 +117,95 @@ img.src=URL.createObjectURL(file)
 
 }
 
-// ===== ポリゴン入力 =====
+//座標取得
 
-canvas.addEventListener("pointerdown",e=>{
+function getMousePos(e){
 
 const rect=canvas.getBoundingClientRect()
 
-const x=(e.clientX-rect.left)*(canvas.width/rect.width)
-const y=(e.clientY-rect.top)*(canvas.height/rect.height)
+return{
+x:(e.clientX-rect.left)*(canvas.width/rect.width),
+y:(e.clientY-rect.top)*(canvas.height/rect.height)
+}
 
-points.push({x,y})
+}
+
+//近い点
+
+function findPoint(pos){
+
+for(let i=0;i<points.length;i++){
+
+const dx=points[i].x-pos.x
+const dy=points[i].y-pos.y
+
+if(Math.sqrt(dx*dx+dy*dy)<20){
+
+return i
+
+}
+
+}
+
+return -1
+
+}
+
+//pointer down
+
+canvas.addEventListener("pointerdown",e=>{
+
+if(!originalImage)return
+
+const pos=getMousePos(e)
+
+const hit=findPoint(pos)
+
+if(hit>=0){
+
+draggingPoint=hit
+
+}else{
+
+points.push(pos)
+
+draw()
+
+}
+
+})
+
+//pointer move
+
+canvas.addEventListener("pointermove",e=>{
+
+if(draggingPoint<0)return
+
+const pos=getMousePos(e)
+
+points[draggingPoint]=pos
 
 draw()
 
 })
 
-// ===== ポリゴン描画 =====
+//pointer up
+
+canvas.addEventListener("pointerup",()=>{
+
+draggingPoint=-1
+
+})
+
+//再描画
 
 function draw(){
 
 ctx.clearRect(0,0,canvas.width,canvas.height)
 
+if(originalImage){
 ctx.drawImage(originalImage,0,0)
+}
 
 if(points.length===0)return
 
@@ -128,19 +214,25 @@ ctx.beginPath()
 ctx.moveTo(points[0].x,points[0].y)
 
 for(let i=1;i<points.length;i++){
-
 ctx.lineTo(points[i].x,points[i].y)
-
 }
 
 ctx.strokeStyle="red"
 ctx.lineWidth=3
-
 ctx.stroke()
+
+for(let p of points){
+
+ctx.beginPath()
+ctx.arc(p.x,p.y,6,0,Math.PI*2)
+ctx.fillStyle="red"
+ctx.fill()
 
 }
 
-// ===== ポリゴン確定 =====
+}
+
+//囲み確定
 
 function finishPolygon(){
 
@@ -151,9 +243,7 @@ maskPath=new Path2D()
 maskPath.moveTo(points[0].x,points[0].y)
 
 for(let i=1;i<points.length;i++){
-
 maskPath.lineTo(points[i].x,points[i].y)
-
 }
 
 maskPath.closePath()
@@ -162,7 +252,7 @@ applyFabric()
 
 }
 
-// ===== 生地適用 =====
+//生地変更
 
 document.getElementById("fabricSelect").onchange=applyFabric
 
@@ -170,11 +260,13 @@ function applyFabric(){
 
 if(!maskPath)return
 
-const row=document.getElementById("fabricSelect").value
+const val=document.getElementById("fabricSelect").value
 
-const cols=row.split(",")
+const cols=val.split(",")
 
-const type=cols[1]
+const r=cols[0]
+const g=cols[1]
+const b=cols[2]
 
 ctx.clearRect(0,0,canvas.width,canvas.height)
 
@@ -184,21 +276,40 @@ ctx.save()
 
 ctx.clip(maskPath)
 
-if(type==="color"){
-
-const r=cols[2]
-const g=cols[3]
-const b=cols[4]
-
 ctx.globalCompositeOperation="multiply"
 
 ctx.fillStyle=`rgb(${r},${g},${b})`
 
 ctx.fillRect(0,0,canvas.width,canvas.height)
 
+ctx.restore()
+
 }
 
-ctx.restore()
+//1点戻す
+
+function undoPoint(){
+
+if(points.length===0)return
+
+points.pop()
+
+draw()
+
+}
+
+//囲い削除
+
+function clearPolygon(){
+
+points=[]
+maskPath=null
+
+ctx.clearRect(0,0,canvas.width,canvas.height)
+
+if(originalImage){
+ctx.drawImage(originalImage,0,0)
+}
 
 }
 
@@ -206,3 +317,4 @@ ctx.restore()
 
 </body>
 </html>
+```
