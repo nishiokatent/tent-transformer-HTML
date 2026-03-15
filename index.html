@@ -26,7 +26,7 @@ padding:8px 12px;
 
 <body>
 
-<h2>テント張替えシミュレーター（TEST）</h2>
+<h2>テント張替えシミュレーター</h2>
 
 <input type="file" id="upload"><br><br>
 
@@ -45,9 +45,11 @@ padding:8px 12px;
 
 <canvas id="canvas"></canvas>
 
+<div id="saveArea"></div>
+
 <script>
 
-const csvURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv"
+const csvURL="CSVのURLをここに入れる"
 
 const canvas=document.getElementById("canvas")
 const ctx=canvas.getContext("2d")
@@ -156,8 +158,6 @@ return -1
 
 canvas.addEventListener("pointerdown",e=>{
 
-if(!originalImage)return
-
 canvas.setPointerCapture(e.pointerId)
 
 pointers.push(e)
@@ -184,15 +184,31 @@ pointers[i]=e
 
 if(pointers.length===2){
 
-const dx=pointers[0].clientX-pointers[1].clientX
-const dy=pointers[0].clientY-pointers[1].clientY
+const p1=pointers[0]
+const p2=pointers[1]
+
+const dx=p1.clientX-p2.clientX
+const dy=p1.clientY-p2.clientY
 
 const distance=Math.sqrt(dx*dx+dy*dy)
+
+const centerX=(p1.clientX+p2.clientX)/2
+const centerY=(p1.clientY+p2.clientY)/2
+
+const rect=canvas.getBoundingClientRect()
+
+const mouseX=(centerX-rect.left)*(canvas.width/rect.width)
+const mouseY=(centerY-rect.top)*(canvas.height/rect.height)
 
 if(lastDistance){
 
 const zoom=distance/lastDistance
+
+offsetX=mouseX-(mouseX-offsetX)*zoom
+offsetY=mouseY-(mouseY-offsetY)*zoom
+
 scale*=zoom
+
 draw()
 
 }
@@ -336,8 +352,6 @@ ctx.restore()
 
 function undoPoint(){
 
-if(points.length===0)return
-
 points.pop()
 draw()
 
@@ -350,6 +364,9 @@ maskPath=null
 draw()
 
 }
+
+
+/* ===== 保存機能 ===== */
 
 function saveImage(){
 
@@ -378,7 +395,6 @@ exportCtx.lineTo(points[i].x,points[i].y)
 }
 
 exportCtx.closePath()
-
 exportCtx.clip()
 
 exportCtx.globalCompositeOperation="multiply"
@@ -391,10 +407,33 @@ exportCtx.restore()
 
 }
 
+const imgURL=exportCanvas.toDataURL("image/png")
+
+const isMobile=/iPhone|Android/i.test(navigator.userAgent)
+
+if(isMobile){
+
+const area=document.getElementById("saveArea")
+
+area.innerHTML=""
+
+const img=document.createElement("img")
+img.src=imgURL
+img.style.width="95%"
+img.style.marginTop="20px"
+
+area.appendChild(img)
+
+alert("画像を長押しして保存してください")
+
+}else{
+
 const link=document.createElement("a")
 link.download="tent_simulation.png"
-link.href=exportCanvas.toDataURL("image/png")
+link.href=imgURL
 link.click()
+
+}
 
 }
 
