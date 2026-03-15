@@ -1,4 +1,3 @@
-html
 <!DOCTYPE html>
 <html>
 <head>
@@ -9,6 +8,10 @@ html
 <title>Tent Simulator</title>
 
 <style>
+
+/* =========================
+   ページスタイル
+========================= */
 
 body{
 font-family:sans-serif;
@@ -30,6 +33,10 @@ padding:8px 12px;
 </head>
 
 <body>
+
+<!-- =========================
+     UI
+========================= -->
 
 <h2>テント張替えシミュレーターTEST</h2>
 
@@ -54,33 +61,64 @@ padding:8px 12px;
 
 <script>
 
+/* =========================
+   CSV設定
+========================= */
+
 const csvURL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv"
+
+
+/* =========================
+   Canvas初期化
+========================= */
 
 const canvas=document.getElementById("canvas")
 const ctx=canvas.getContext("2d")
+
+
+/* =========================
+   画像・ポリゴン状態
+========================= */
 
 let originalImage=null
 let points=[]
 let maskPath=null
 
+
+/* =========================
+   ズーム・パン状態
+========================= */
+
 let scale=1
 let offsetX=0
 let offsetY=0
+
+
+/* =========================
+   ポインター操作状態
+========================= */
 
 let pointers=[]
 let lastDistance=0
 let lastPanX=0
 let lastPanY=0
 
-let needsRedraw=true
-
-/* タップ誤爆防止 */
-
 let downX=0
 let downY=0
 let moved=false
+let pinchUsed=false
 
-/* 描画ループ */
+
+/* =========================
+   描画制御
+========================= */
+
+let needsRedraw=true
+
+
+/* =========================
+   描画ループ
+========================= */
 
 function renderLoop(){
 
@@ -96,7 +134,9 @@ requestAnimationFrame(renderLoop)
 requestAnimationFrame(renderLoop)
 
 
-/* CSV読み込み */
+/* =========================
+   CSV読み込み（生地マスター）
+========================= */
 
 fetch(csvURL)
 .then(res=>res.text())
@@ -130,7 +170,9 @@ select.appendChild(option)
 })
 
 
-/* 画像読み込み */
+/* =========================
+   画像アップロード
+========================= */
 
 document.getElementById("upload").onchange=e=>{
 
@@ -159,7 +201,9 @@ img.src=URL.createObjectURL(file)
 }
 
 
-/* 座標取得 */
+/* =========================
+   座標取得
+========================= */
 
 function getMousePos(e){
 
@@ -176,7 +220,9 @@ y:(y-offsetY)/scale
 }
 
 
-/* pointerdown */
+/* =========================
+   pointerdown
+========================= */
 
 canvas.addEventListener("pointerdown",e=>{
 
@@ -190,11 +236,14 @@ lastPanY=e.clientY
 downX=e.clientX
 downY=e.clientY
 moved=false
+pinchUsed=false
 
 })
 
 
-/* pointermove */
+/* =========================
+   pointermove
+========================= */
 
 canvas.addEventListener("pointermove",e=>{
 
@@ -204,9 +253,9 @@ pointers[i]=e
 }
 }
 
-/* 2本指ズーム */
-
 if(pointers.length===2){
+
+pinchUsed=true
 
 const p1=pointers[0]
 const p2=pointers[1]
@@ -238,12 +287,8 @@ needsRedraw=true
 }
 
 lastDistance=distance
-
 return
 }
-
-
-/* 1本指パン */
 
 if(pointers.length===1){
 
@@ -267,14 +312,17 @@ needsRedraw=true
 })
 
 
-/* pointerup */
+/* =========================
+   pointerup
+========================= */
 
 canvas.addEventListener("pointerup",e=>{
 
 pointers=pointers.filter(p=>p.pointerId!==e.pointerId)
+
 lastDistance=0
 
-if(!moved){
+if(!moved && !pinchUsed){
 
 const pos=getMousePos(e)
 
@@ -287,7 +335,21 @@ needsRedraw=true
 })
 
 
-/* マウスホイールズーム */
+/* =========================
+   pointercancel
+========================= */
+
+canvas.addEventListener("pointercancel",e=>{
+
+pointers=pointers.filter(p=>p.pointerId!==e.pointerId)
+lastDistance=0
+
+})
+
+
+/* =========================
+   マウスホイールズーム
+========================= */
 
 canvas.addEventListener("wheel",e=>{
 
@@ -310,7 +372,9 @@ needsRedraw=true
 })
 
 
-/* 描画 */
+/* =========================
+   描画処理
+========================= */
 
 function draw(){
 
@@ -353,7 +417,9 @@ ctx.fill()
 }
 
 
-/* 囲い完成 */
+/* =========================
+   囲い完成
+========================= */
 
 function finishPolygon(){
 
@@ -377,7 +443,9 @@ needsRedraw=true
 document.getElementById("fabricSelect").onchange=()=>{needsRedraw=true}
 
 
-/* 生地合成 */
+/* =========================
+   生地合成
+========================= */
 
 function applyFabric(){
 
@@ -401,28 +469,30 @@ ctx.restore()
 }
 
 
-/* 戻る */
+/* =========================
+   1点戻す
+========================= */
 
 function undoPoint(){
-
 points.pop()
 needsRedraw=true
-
 }
 
 
-/* 削除 */
+/* =========================
+   囲い削除
+========================= */
 
 function clearPolygon(){
-
 points=[]
 maskPath=null
 needsRedraw=true
-
 }
 
 
-/* 保存 */
+/* =========================
+   画像保存
+========================= */
 
 function saveImage(){
 
@@ -497,4 +567,3 @@ link.click()
 
 </body>
 </html>
-```
