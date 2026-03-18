@@ -11,7 +11,7 @@
         #status { color: #444; font-size: 0.85em; margin-bottom: 10px; padding: 8px; background: #eee; border-radius: 4px; min-height: 1.5em; }
     </style>
     
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -40,19 +40,21 @@ const statusDiv = document.getElementById("status");
 function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 async function initAI() {
-    // 2. WASMファイルの参照先を、安定している公式URLに固定する
+    console.log("AI起動開始...");
+    // 確実に存在するCDN上のWASMフォルダを指定します
     const visionRoot = await filesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
     );
 
     const imageSegmenter = await ImageSegmenter.createFromOptions(visionRoot, {
         baseOptions: {
-            modelAssetPath: "./magic_touch.tflite", // 自分でアップしたモデル
+            modelAssetPath: "./magic_touch.tflite", // ここは自分のGitHubにあるファイル
             delegate: "GPU"
         },
         runningMode: "IMAGE",
         outputCategoryMask: true
     });
+    console.log("AI起動完了！");
     return imageSegmenter;
 }
 
