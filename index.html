@@ -5,50 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Tent Simulator AI</title>
 <style>
-body {
-    font-family: sans-serif;
-    text-align: center;
-    margin: 0;
-    padding: 10px;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-}
-canvas {
-    border: 1px solid #aaa;
-    max-width: 95%;
-    touch-action: none;
-    cursor: crosshair;
-    background-color: #f0f0f0;
-    -webkit-touch-callout: none;
-}
-button {
-    margin: 5px;
-    padding: 10px 15px;
-    font-size: 14px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    background: #fff;
-}
-#status {
-    color: #666;
-    font-size: 0.8em;
-    margin-bottom: 10px;
-    min-height: 1.2em;
-}
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; -webkit-touch-callout: none; user-select: none; }
+    canvas { border: 1px solid #aaa; max-width: 95%; touch-action: none; background-color: #f0f0f0; -webkit-touch-callout: none; }
+    button { margin: 5px; padding: 10px 15px; }
+    #status { color: #666; font-size: 0.8em; margin-bottom: 10px; min-height: 1.2em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3" crossorigin="anonymous"></script>
 </head>
 <body>
 
 <h2>テント張替えシミュレーター AI</h2>
-<div id="status">AIエンジン起動中...</div>
+<div id="status">ライブラリ読み込み中...</div>
 
 <input type="file" id="upload" accept="image/*"><br><br>
-
-<select id="fabricSelect">
-    <option>生地読み込み中...</option>
-</select>
+<select id="fabricSelect"><option>生地読み込み中...</option></select>
 
 <br><br>
 <button onclick="undoPoint()">1点戻す</button>
@@ -61,38 +31,26 @@ button {
 <div id="saveArea"></div>
 
 <script>
-/* =========================
-   AI設定 (修正版)
-========================= */
 let interactiveSegmenter;
 const statusDiv = document.getElementById("status");
 
-async function initAI() {
+// ライブラリが完全に読み込まれるのを待つ関数
+async function setupAI() {
     try {
-        // グローバルオブジェクトからの取得を確実にする
-        const vision = await Array.from(document.scripts)
-            .find(s => s.src.includes('tasks-vision'))
-            ? window.tasksVision : null;
-            
-        if (!vision) {
-            // 直接参照を試みる
-            const filesetResolver = await transitions.FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-            );
+        // mediapipeオブジェクトが存在するかチェック
+        if (typeof mediapipe === 'undefined' || !mediapipe.tasksVision) {
+            statusDiv.textContent = "再試行中...";
+            setTimeout(setupAI, 500);
+            return;
         }
 
-        // 最も確実なグローバル参照方法
-        const filesetResolver = await tflite_model_runner_FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-        );
-        
-        // 以下の書き方で再試行
         const { InteractiveSegmenter, FilesetResolver } = mediapipe.tasksVision;
-        const wasmFileset = await FilesetResolver.forVisionTasks(
+        
+        const vision = await FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
 
-        interactiveSegmenter = await InteractiveSegmenter.createFromOptions(wasmFileset, {
+        interactiveSegmenter = await InteractiveSegmenter.createFromOptions(vision, {
             baseOptions: {
                 modelAssetPath: `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/models/interactive_segmenter.tflite`,
                 delegate: "GPU"
@@ -102,20 +60,19 @@ async function initAI() {
         });
         statusDiv.textContent = "AI準備完了：テントをタップして自動抽出";
     } catch (e) {
-        // エラー詳細を表示して原因を特定しやすくする
         statusDiv.innerHTML = `<span style='color:red;'>⚠️ 起動失敗: ${e.message}</span>`;
-        console.error(e);
+        console.error("AI Init Error:", e);
     }
 }
-initAI();
+
+// ページ読み込み完了後に実行
+window.onload = setupAI;
 
 /* =========================
-   以下、既存のCanvas/操作ロジック (変更なし)
+   Canvas 処理
 ========================= */
-const csvURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv";
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-
 let originalImage = null, points = [], maskPath = null;
 let scale = 1, offsetX = 0, offsetY = 0, pointers = [];
 let lastDistance = 0, lastPanX = 0, lastPanY = 0, moved = false, pinchUsed = false;
@@ -124,6 +81,8 @@ let needsRedraw = true;
 function renderLoop() { if (needsRedraw) { draw(); needsRedraw = false; } requestAnimationFrame(renderLoop); }
 requestAnimationFrame(renderLoop);
 
+// 生地データの読み込み (CSV URLはそのまま)
+const csvURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv";
 fetch(csvURL).then(res => res.text()).then(text => {
     const rows = text.trim().split("\n").slice(1);
     const select = document.getElementById("fabricSelect");
