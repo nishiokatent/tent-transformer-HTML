@@ -37,31 +37,20 @@ let interactiveSegmenter;
 const statusDiv = document.getElementById("status");
 
 async function initAI() {
-    statusDiv.textContent = "AIエンジンを接続中...";
-    
     try {
-        // SDKが読み込まれているか最終確認
-        if (typeof mediapipe === 'undefined') {
-            // もしjsdelivrがダメだった場合、ここで別のURLから再試行するスクリプトを動的に追加
-            statusDiv.textContent = "予備の接続先に切り替えています...";
-            await loadScript("https://www.gstatic.com/mediapipe/solutions/interactive_segmenter/interactive_segmenter.js");
-        }
-
         const vision = await mediapipe.tasksVision.FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
         );
-        
         interactiveSegmenter = await mediapipe.tasksVision.InteractiveSegmenter.createFromOptions(vision, {
             baseOptions: {
-                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float16/1/magic_touch.tflite",
+                // ここをGoogle公式から、CDN経由に変更してみる
+                modelAssetPath: `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/models/interactive_segmenter.tflite`,
                 delegate: "GPU"
             },
             outputCategoryMask: true,
             outputConfidenceMasks: false
         });
-        
-        statusDiv.textContent = "✅ 準備完了：テントをタップしてください";
-        statusDiv.style.background = "#d1fae5";
+        statusDiv.textContent = "AI準備完了：テントをタップして自動抽出";
     } catch (e) {
         statusDiv.innerHTML = `<b style="color:red;">⚠️ 接続エラー</b><br><small>Wi-Fiを切り替えるか、広告ブロックをオフにしてみてください</small>`;
         console.error(e);
