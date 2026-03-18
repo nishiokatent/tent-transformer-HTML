@@ -40,22 +40,30 @@ const statusDiv = document.getElementById("status");
 function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 async function initAI() {
-    console.log("AI起動開始...");
-    // 確実に存在するCDN上のWASMフォルダを指定します
-    const visionRoot = await filesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-    );
+    console.log("AI起動プロセス開始...");
+    try {
+        // バージョンを「latest（最新）」ではなく「0.10.3」に敢えて固定し、
+        // 配信元が一番安定している「unpkg」というサイトから直接呼び出します。
+        const visionRoot = await filesetResolver.forVisionTasks(
+            "https://unpkg.com/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
 
-    const imageSegmenter = await ImageSegmenter.createFromOptions(visionRoot, {
-        baseOptions: {
-            modelAssetPath: "./magic_touch.tflite", // ここは自分のGitHubにあるファイル
-            delegate: "GPU"
-        },
-        runningMode: "IMAGE",
-        outputCategoryMask: true
-    });
-    console.log("AI起動完了！");
-    return imageSegmenter;
+        const imageSegmenter = await ImageSegmenter.createFromOptions(visionRoot, {
+            baseOptions: {
+                // モデルだけは自分のGitHub（Vercel）にあるものを使う
+                modelAssetPath: "./magic_touch.tflite",
+                delegate: "GPU"
+            },
+            runningMode: "IMAGE",
+            outputCategoryMask: true
+        });
+        
+        console.log("AI起動成功！");
+        return imageSegmenter;
+    } catch (error) {
+        console.error("AI起動エラー:", error);
+        alert("起動に失敗しました: " + error);
+    }
 }
 
 // ページ読み込み完了後に実行
