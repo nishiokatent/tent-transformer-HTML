@@ -5,15 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Tent Simulator AI Pro</title>
 <style>
-/* =========================
-   ページスタイル
-========================= */
 body {
     font-family: sans-serif;
     text-align: center;
     margin: 0;
     padding: 10px;
-    /* テキスト選択を徹底禁止 */
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
@@ -25,7 +21,6 @@ canvas {
     touch-action: none;
     cursor: crosshair;
     background-color: #f8f8f8;
-    /* 長押しメニューを禁止 */
     -webkit-touch-callout: none;
 }
 
@@ -36,19 +31,20 @@ button {
     border-radius: 6px;
     border: 1px solid #ccc;
     background: #fff;
-    /* ボタンのデフォルトスタイルを解除して統一 */
+    /* スタイル解除の標準化 */
     -webkit-appearance: none;
-    -moz-appearance: none; /* Firefox用 */
-    appearance: none;      /* 標準プロパティ */
+    -moz-appearance: none;
+    appearance: none;
 }
 
 #status {
     color: #444;
     font-size: 0.85em;
     margin-bottom: 10px;
-    padding: 5px;
-    background: #eee;
+    padding: 8px;
+    background: #f0f0f0;
     border-radius: 4px;
+    min-height: 1.5em;
 }
 
 #saveArea img {
@@ -61,7 +57,7 @@ button {
 <body>
 
 <h2>テント張替え AIシミュレーター</h2>
-<div id="status">AIエンジンを初期化中...</div>
+<div id="status">AIエンジン初期化中...</div>
 
 <input type="file" id="upload" accept="image/*"><br><br>
 
@@ -80,9 +76,6 @@ button {
 <div id="saveArea"></div>
 
 <script>
-/* =========================
-   AIエンジン (Interactive Segmenter)
-========================= */
 let interactiveSegmenter;
 const statusDiv = document.getElementById("status");
 
@@ -99,31 +92,22 @@ async function initAI() {
             outputCategoryMask: true,
             outputConfidenceMasks: false
         });
-        statusDiv.textContent = "✅ AI準備完了：テントをタップ（長押し）して下さい";
+        statusDiv.textContent = "✅ AI準備完了：テントをタップして下さい";
     } catch (e) {
-        statusDiv.innerHTML = "<b style='color:red;'>⚠️ AI起動エラー: HTTPS環境であることを確認してください</b>";
+        statusDiv.innerHTML = "<b style='color:red;'>⚠️ AI起動エラー: ページを再読み込みしてください</b>";
         console.error("AI Init Error:", e);
     }
 }
-
-// ページ読み込み完了後に実行
 window.onload = initAI;
 
-/* =========================
-   Canvas 制御
-========================= */
 const csvURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQyMy5PUSJjr1f_fnQIpRIUagAp8Dw7Hqckr9422w_459qgQ_j4Bhw4LWygLVWTURa9n4Xl_gBNHAie/pub?output=csv";
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-let originalImage = null;
-let points = [];
-let maskPath = null;
+let originalImage = null, points = [], maskPath = null;
 let scale = 1, offsetX = 0, offsetY = 0;
-let pointers = [];
-let lastDistance = 0, lastPanX = 0, lastPanY = 0;
-let downX = 0, downY = 0, moved = false, pinchUsed = false;
-let needsRedraw = true;
+let pointers = [], lastDistance = 0, lastPanX = 0, lastPanY = 0;
+let downX = 0, downY = 0, moved = false, pinchUsed = false, needsRedraw = true;
 
 function renderLoop() {
     if (needsRedraw) { draw(); needsRedraw = false; }
@@ -131,7 +115,6 @@ function renderLoop() {
 }
 requestAnimationFrame(renderLoop);
 
-/* 生地リスト読み込み */
 fetch(csvURL).then(res => res.text()).then(text => {
     const rows = text.trim().split("\n").slice(1);
     const select = document.getElementById("fabricSelect");
@@ -146,11 +129,11 @@ fetch(csvURL).then(res => res.text()).then(text => {
     });
 });
 
-/* 画像アップ */
 document.getElementById("upload").onchange = e => {
     const file = e.target.files[0];
     if(!file) return;
     const img = new Image();
+    img.crossOrigin = "anonymous"; // AI解析のための権限設定
     img.onload = () => {
         canvas.width = img.width;
         canvas.height = img.height;
@@ -161,7 +144,6 @@ document.getElementById("upload").onchange = e => {
     img.src = URL.createObjectURL(file);
 };
 
-/* 座標計算 */
 function getMousePos(e) {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -169,55 +151,47 @@ function getMousePos(e) {
     return { x: (x - offsetX) / scale, y: (y - offsetY) / scale };
 }
 
-/* AIセグメンテーション実行 */
 async function runAISegmentation(targetX, targetY) {
     if (!interactiveSegmenter || !originalImage) return;
     statusDiv.textContent = "⏳ 解析中...";
-    
-    // AI実行時は古い情報をクリア
-    points = []; 
-    maskPath = null;
+    points = []; maskPath = null;
 
-    // AIに渡す座標は画像の実際のピクセル座標（ズーム影響なし）
-    const result = interactiveSegmenter.segment(originalImage, {
-        keypoint: { x: targetX / canvas.width, y: targetY / canvas.height }
-    });
-    
-    const mask = result.categoryMask.getAsUint8Array();
-    
-    // マスクをPath2Dに変換
+    try {
+        const result = interactiveSegmenter.segment(originalImage, {
+            keypoint: { x: targetX / canvas.width, y: targetY / canvas.height }
+        });
+        const mask = result.categoryMask.getAsUint8Array();
+        processMask(mask);
+    } catch (err) {
+        statusDiv.textContent = "❌ 解析エラーが発生しました";
+    }
+}
+
+function processMask(maskData) {
     const mCanvas = document.createElement("canvas");
     mCanvas.width = canvas.width;
     mCanvas.height = canvas.height;
     const mCtx = mCanvas.getContext("2d");
     const mImgData = mCtx.createImageData(canvas.width, canvas.height);
-    
     let hasData = false;
-    for (let i = 0; i < mask.length; i++) {
-        if (mask[i] > 0) {
+    for (let i = 0; i < maskData.length; i++) {
+        if (maskData[i] > 0) {
             mImgData.data[i * 4] = 255;
             mImgData.data[i * 4 + 3] = 255;
             hasData = true;
         }
     }
     mCtx.putImageData(mImgData, 0, 0);
-    
     if(hasData) {
         maskPath = new Path2D(mCanvas);
-        statusDiv.textContent = "✅ 抽出成功！生地を選択してください";
+        statusDiv.textContent = "✅ 抽出成功";
     } else {
-        statusDiv.textContent = "❌ 抽出失敗。別の場所を試してください";
+        statusDiv.textContent = "❌ 範囲が見つかりませんでした";
     }
     needsRedraw = true;
 }
 
-/* =========================
-   操作（iPhone長押し干渉対策）
-========================= */
-// 右クリックメニュー（長押しメニュー）を完全に殺す
-window.addEventListener('contextmenu', e => {
-    if (e.target.tagName === 'CANVAS') e.preventDefault();
-}, false);
+window.addEventListener('contextmenu', e => { if (e.target.tagName === 'CANVAS') e.preventDefault(); }, false);
 
 canvas.addEventListener("pointerdown", e => {
     if(e.pointerType === 'touch') e.preventDefault();
@@ -230,7 +204,6 @@ canvas.addEventListener("pointerdown", e => {
 
 canvas.addEventListener("pointermove", e => {
     for(let i=0; i<pointers.length; i++){ if(pointers[i].pointerId === e.pointerId) pointers[i] = e; }
-    
     if(pointers.length === 2) {
         pinchUsed = true;
         const p1 = pointers[0], p2 = pointers[1];
@@ -240,7 +213,6 @@ canvas.addEventListener("pointermove", e => {
         const canvasX = (centerX - rect.left) * (canvas.width / rect.width);
         const canvasY = (centerY - rect.top) * (canvas.height / rect.height);
         const distance = Math.sqrt(Math.pow(p1.clientX - p2.clientX, 2) + Math.pow(p1.clientY - p2.clientY, 2));
-        
         if(lastDistance) {
             const zoom = distance / lastDistance;
             offsetX = canvasX - (canvasX - offsetX) * zoom;
@@ -263,28 +235,21 @@ canvas.addEventListener("pointerup", e => {
     lastDistance = 0;
     if(!moved && !pinchUsed) {
         const pos = getMousePos(e);
-        if(interactiveSegmenter) {
-            runAISegmentation(pos.x, pos.y);
-        } else {
-            points.push(pos);
-        }
+        if(interactiveSegmenter) runAISegmentation(pos.x, pos.y);
+        else points.push(pos);
         needsRedraw = true;
     }
 });
 
-/* 描画メイン */
 function draw() {
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
-
     if(originalImage) ctx.drawImage(originalImage, 0, 0);
-
     if(maskPath) {
         applyFabric();
     } else if(points.length > 0) {
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
+        ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
         for(let i=1; i<points.length; i++) ctx.lineTo(points[i].x, points[i].y);
         ctx.strokeStyle = "red"; ctx.lineWidth = 3/scale; ctx.stroke();
         for(let p of points) {
@@ -307,19 +272,17 @@ function applyFabric() {
     ctx.restore();
 }
 
-/* ユーティリティ */
 function finishPolygon() {
     if(points.length < 3) return;
     maskPath = new Path2D();
     maskPath.moveTo(points[0].x, points[0].y);
     for(let i=1; i<points.length; i++) maskPath.lineTo(points[i].x, points[i].y);
     maskPath.closePath();
-    points = [];
-    needsRedraw = true;
+    points = []; needsRedraw = true;
 }
 document.getElementById("fabricSelect").onchange = () => { needsRedraw = true; };
 function undoPoint() { points.pop(); needsRedraw = true; }
-function clearPolygon() { points = []; maskPath = null; statusDiv.textContent = "AI準備完了"; needsRedraw = true; }
+function clearPolygon() { points = []; maskPath = null; statusDiv.textContent = "✅ AI準備完了"; needsRedraw = true; }
 
 function saveImage() {
     if(!originalImage) return;
