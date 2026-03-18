@@ -46,13 +46,13 @@ async function initAI() {
         );
 
         interactiveSegmenter = await mediapipe.tasksVision.InteractiveSegmenter.createFromOptions(vision, {
-            baseOptions: {
-                modelAssetPath: "magic_touch.tflite", // 必ずファイル名を一致させてください
-                delegate: "GPU"
-            },
-            outputCategoryMask: true,
-            outputConfidenceMasks: false
-        });
+    baseOptions: {
+        modelAssetPath: "./magic_touch.tflite", 
+        delegate: "GPU"
+    },
+    outputCategoryMask: true,
+    outputConfidenceMasks: false
+});
         
         statusDiv.textContent = "AI準備完了：テントをタップして自動抽出";
         statusDiv.style.color = "#28a745";
